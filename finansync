@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinanSync ERP | Cobranzas a Crédito, Banco y Retenciones</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; }
+    .font-mono-code { font-family: 'JetBrains Mono', monospace; }
+    .fade-in { animation: fadeIn 0.35s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .tab-active { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: white; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); }
+  </style>
+</head>
+<body class="text-slate-800 antialiased pb-16">
+
+  <!-- NAVBAR CORPORATIVO CON LOGO -->
+  <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-lg border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-cyan-500 to-emerald-400 p-0.5 shadow-md">
+          <div class="w-full h-full bg-slate-900 rounded-[10px] flex items-center justify-center">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none">
+              <path d="M4 17L10 11L14 15L20 7" stroke="url(#logoGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="20" cy="7" r="2.5" fill="#34d399"/>
+              <path d="M4 7H11" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/>
+              <defs>
+                <linearGradient id="logoGrad" x1="4" y1="17" x2="20" y2="7" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#3b82f6"/>
+                  <stop offset="0.5" stop-color="#06b6d4"/>
+                  <stop offset="1" stop-color="#10b981"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-blue-100 to-emerald-200 bg-clip-text text-transparent">FinanSync</span>
+            <span class="text-[10px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full">Crédito & Cobranzas</span>
+          </div>
+          <p class="text-[11px] text-slate-400">Gestión de Pagos en Calle, Conciliación Bancaria y Auditoría de Retenciones</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <button type="button" onclick="cargarDatosDemo(true)" class="text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-slate-950 px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow cursor-pointer">
+          <i data-lucide="sparkles" class="w-4 h-4"></i> Reiniciar Demo (25 Reg.)
+        </button>
+        <button type="button" onclick="descargarPlantillas()" class="text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+          <i data-lucide="file-down" class="w-4 h-4 text-cyan-400"></i> Plantillas CSV
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 mt-6">
+
+    <!-- TARJETAS DE RESUMEN FINANCIERO (KPIs) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 border-t-4 border-t-blue-600">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ingresos en Banco</p>
+            <p id="kpiBanco" class="text-2xl font-extrabold text-slate-900 mt-1">$0.00</p>
+          </div>
+          <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl"><i data-lucide="landmark" class="w-5 h-5"></i></div>
+        </div>
+        <p id="kpiMovBanco" class="text-[11px] text-slate-500 mt-2">0 movimientos confirmados</p>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 border-t-4 border-t-indigo-600">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Facturas en ERP (25)</p>
+            <p id="kpiErp" class="text-2xl font-extrabold text-slate-900 mt-1">$0.00</p>
+          </div>
+          <div class="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i></div>
+        </div>
+        <p id="kpiPendienteCobro" class="text-[11px] text-indigo-600 font-semibold mt-2">0 facturas a crédito pendientes</p>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 border-t-4 border-t-amber-500">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Retenciones (25)</p>
+            <p id="kpiRetenciones" class="text-2xl font-extrabold text-slate-900 mt-1">$0.00</p>
+          </div>
+          <div class="p-2.5 bg-amber-50 text-amber-600 rounded-xl"><i data-lucide="shield-check" class="w-5 h-5"></i></div>
+        </div>
+        <p id="kpiRetAlerta" class="text-[11px] text-rose-600 font-semibold mt-2">0 discrepancias detectadas</p>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 border-t-4 border-t-emerald-500">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Efectividad Conciliación</p>
+            <p id="kpiEfectividad" class="text-2xl font-extrabold text-emerald-600 mt-1">0%</p>
+          </div>
+          <div class="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><i data-lucide="check-circle-2" class="w-5 h-5"></i></div>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-1.5 mt-3">
+          <div id="barraEfectividad" class="bg-gradient-to-r from-blue-600 to-emerald-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTONES PRINCIPALES DE ACCIÓN DEL VENDEDOR Y AUDITORÍA -->
+    <div class="bg-white p-2.5 rounded-2xl shadow-sm border border-slate-200/80 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+      <button type="button" onclick="cambiarTab('cargar-pago')" id="tab-cargar-pago" class="tab-active py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer">
+        <i data-lucide="banknote" class="w-4 h-4"></i> 1. Cargar Pago de Cliente
+      </button>
+      <button type="button" onclick="cambiarTab('cargar-retencion')" id="tab-cargar-retencion" class="py-3 px-4 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-2 transition cursor-pointer">
+        <i data-lucide="file-badge-2" class="w-4 h-4 text-amber-600"></i> 2. Comprobante de Retención
+      </button>
+      <button type="button" onclick="cambiarTab('matriz-conciliacion')" id="tab-matriz-conciliacion" class="py-3 px-4 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-2 transition cursor-pointer">
+        <i data-lucide="arrow-left-right" class="w-4 h-4 text-blue-600"></i> 3. Conciliación Banco & ERP
+      </button>
+      <button type="button" onclick="cambiarTab('subir-archivos')" id="tab-subir-archivos" class="py-3 px-4 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 flex items-center justify-center gap-2 transition cursor-pointer">
+        <i data-lucide="upload-cloud" class="w-4 h-4 text-emerald-600"></i> 4. Subir Excel / CSV (ERP & Banco)
+      </button>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- PESTAÑA 1: BOTÓN "CARGAR PAGO" (COBRANZA EN CALLE / CRÉDITO)          -->
+    <!-- ===================================================================== -->
+    <section id="vista-cargar-pago" class="fade-in">
+      <div class="grid lg:grid-cols-3 gap-6">
+        
+        <!-- Formulario Exclusivo para Cargar Pago -->
+        <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+          <div class="bg-gradient-to-r from-blue-900 via-blue-700 to-cyan-600 px-6 py-4 text-white flex justify-between items-center">
+            <div>
+              <h2 class="font-bold text-base flex items-center gap-2"><i data-lucide="wallet" class="w-5 h-5"></i> Cargar Pago de Cliente (Contado o Abono a Crédito)</h2>
+              <p class="text-xs text-blue-100 mt-0.5">Registra la transferencia o depósito recibido en calle y crúzalo al instante con el Banco y la Factura ERP.</p>
+            </div>
+            <span class="bg-white/15 text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg">Ruta: Cobranza Calle</span>
+          </div>
+
+          <form id="formPago" onsubmit="procesarNuevoPago(event)" class="p-6 space-y-5">
+            <!-- Selección rápida de factura a crédito pendiente -->
+            <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-4">
+              <label class="block text-xs font-bold text-blue-900 mb-1.5 flex items-center gap-1.5">
+                <i data-lucide="search" class="w-3.5 h-3.5"></i> Seleccionar Factura Pendiente del ERP (Ventas a Crédito):
+              </label>
+              <select id="selectFacturaErp" onchange="autocompletarDesdeFactura()" class="w-full px-3.5 py-2.5 text-xs bg-white border border-blue-300 rounded-xl font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500">
+                <option value="">-- Selecciona una factura a crédito o escribe los datos manualmente abajo --</option>
+              </select>
+            </div>
+
+            <div class="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">N° Factura que Paga *</label>
+                <input type="text" id="pFactura" required placeholder="Ej: FAC-1021" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl uppercase font-mono-code focus:ring-2 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Cliente / Razón Social *</label>
+                <input type="text" id="pCliente" required placeholder="Ej: Inversiones Delta C.A." class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Condición de Venta</label>
+                <select id="pCondicion" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl bg-white font-semibold">
+                  <option value="Crédito (Cobro en Calle)">Crédito (Cobro en Calle)</option>
+                  <option value="Contado">Contado</option>
+                  <option value="Abono Parcial">Abono Parcial</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">N° Referencia Bancaria *</label>
+                <input type="text" id="pRef" required placeholder="Ej: REF-9021" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl uppercase font-mono-code focus:ring-2 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Monto Pagado ($) *</label>
+                <input type="number" step="0.01" id="pMonto" required placeholder="1040.00" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl font-extrabold text-emerald-700 focus:ring-2 focus:ring-blue-500">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Fecha del Pago *</label>
+                <input type="date" id="pFecha" value="2026-11-25" required class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Banco Receptor</label>
+                <select id="pBanco" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl bg-white">
+                  <option value="Banesco">Banesco</option>
+                  <option value="Banco Mercantil">Banco Mercantil</option>
+                  <option value="BBVA Provincial">BBVA Provincial</option>
+                  <option value="Banco de Venezuela">Banco de Venezuela</option>
+                  <option value="Zelle / Cuenta USD">Zelle / Cuenta USD</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Comprobante de Pago (Capture / PDF)</label>
+                <input type="file" id="pArchivo" accept="image/*,.pdf" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-200 rounded-xl p-1">
+              </div>
+            </div>
+
+            <div class="pt-2 flex flex-wrap gap-3">
+              <button type="submit" class="flex-1 bg-gradient-to-r from-blue-700 to-cyan-600 hover:from-blue-800 hover:to-cyan-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-xs cursor-pointer">
+                <i data-lucide="check-circle" class="w-4 h-4"></i> Cargar Pago y Conciliar con Banco
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Panel Lateral: Cuentas por Cobrar a Crédito del ERP -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <h3 class="font-bold text-sm text-slate-800 flex items-center gap-2"><i data-lucide="clock" class="w-4 h-4 text-blue-600"></i> Facturas ERP (25 Registros)</h3>
+              <span class="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Nube ERP</span>
+            </div>
+            <div id="listaFacturasLateral" class="space-y-3 max-h-[420px] overflow-y-auto pr-1"></div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-slate-100 text-center">
+            <button type="button" onclick="cambiarTab('matriz-conciliacion')" class="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center justify-center gap-1 w-full cursor-pointer">
+              Ir a Conciliación Banco vs. ERP <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- PESTAÑA 2: BOTÓN "COMPROBANTE DE RETENCIÓN" (IVA, ISLR, MUNICIPAL)    -->
+    <!-- ===================================================================== -->
+    <section id="vista-cargar-retencion" class="hidden fade-in">
+      <div class="grid lg:grid-cols-3 gap-6 mb-6">
+        
+        <!-- Formulario Separado para Cargar Comprobante de Retención -->
+        <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+          <div class="bg-gradient-to-r from-amber-600 via-orange-500 to-amber-500 px-6 py-4 text-white flex justify-between items-center">
+            <div>
+              <h2 class="font-bold text-base flex items-center gap-2"><i data-lucide="file-badge-2" class="w-5 h-5"></i> Cargar Comprobante de Retención (Auditoría ERP)</h2>
+              <p class="text-xs text-amber-50 mt-0.5">Carga retenciones de <b>IVA, ISLR o Municipales</b>. El sistema verifica en el ERP que el RIF, fecha, base y monto sean correctos.</p>
+            </div>
+            <span class="bg-white/20 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg">Validación Fiscal</span>
+          </div>
+
+          <form id="formRetencion" onsubmit="procesarNuevaRetencion(event)" class="p-6 space-y-5">
+            <div class="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Tipo de Retención *</label>
+                <select id="rTipo" onchange="calcularSugerenciaRetencion()" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl bg-amber-50/50 font-bold text-slate-800 focus:ring-2 focus:ring-amber-500">
+                  <option value="IVA 75%">Retención IVA (75%)</option>
+                  <option value="IVA 100%">Retención IVA (100%)</option>
+                  <option value="ISLR">Retención ISLR (Imp. Sobre la Renta)</option>
+                  <option value="Municipal (IAE)">Retención Municipal (Act. Económica)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">N° Comprobante Retención *</label>
+                <input type="text" id="rNumComp" required placeholder="Ej: 20261100099" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl font-mono-code focus:ring-2 focus:ring-amber-500">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Factura Afectada (ERP) *</label>
+                <input type="text" id="rFactura" required placeholder="Ej: FAC-1021" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl uppercase font-mono-code focus:ring-2 focus:ring-amber-500">
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">RIF del Agente Retenedor *</label>
+                <input type="text" id="rRif" required placeholder="Ej: J-30458912-1" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl uppercase font-mono-code focus:ring-2 focus:ring-amber-500">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Fecha del Comprobante *</label>
+                <input type="date" id="rFecha" value="2026-11-25" required class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Base Imponible ($) *</label>
+                <input type="number" step="0.01" id="rBase" required oninput="calcularSugerenciaRetencion()" placeholder="1000.00" class="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl font-semibold focus:ring-2 focus:ring-amber-500">
+              </div>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-4 items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Monto Retenido en el Comprobante ($) *</label>
+                <input type="number" step="0.01" id="rMontoRetenido" required placeholder="120.00" class="w-full px-3.5 py-2.5 text-xs bg-white border border-amber-300 rounded-xl font-extrabold text-amber-800 focus:ring-2 focus:ring-amber-500">
+                <p id="rAyudaCalculo" class="text-[11px] text-slate-500 mt-1">Ingresa la base imponible para ver el cálculo esperado.</p>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Adjuntar Comprobante (PDF / Foto) *</label>
+                <input type="file" id="rArchivo" accept="image/*,.pdf" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200 cursor-pointer bg-white border border-slate-200 rounded-xl p-1">
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-3 pt-1">
+              <button type="submit" class="flex-1 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-xs cursor-pointer">
+                <i data-lucide="shield-check" class="w-4 h-4"></i> Verificar Retención contra ERP
+              </button>
+              <button type="button" onclick="autocompletarEjemploRetencion()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-4 rounded-xl text-xs transition cursor-pointer">
+                Rellenar Ejemplo Retención
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Guía Rápida de Validación ERP -->
+        <div class="bg-slate-900 text-white rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="bg-amber-400 text-slate-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded uppercase">Motor Auditor</span>
+            <h3 class="font-bold text-base mt-2">¿Qué verifica el sistema al cargar la retención?</h3>
+            <ul class="mt-4 space-y-3 text-xs text-slate-300">
+              <li class="flex items-start gap-2.5">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+                <span><b>Existencia en ERP:</b> Confirma que la factura y la retención estén registradas en el reporte bajado de la nube.</span>
+              </li>
+              <li class="flex items-start gap-2.5">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+                <span><b>Validación de RIF:</b> Comprueba que el RIF del cliente coincida exactamente con el maestro del ERP.</span>
+              </li>
+              <li class="flex items-start gap-2.5">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+                <span><b>Cálculo Matemático:</b> Audita que el porcentaje retenido (IVA 75%/100%, ISLR o Municipal) sobre la base sea exacto.</span>
+              </li>
+              <li class="flex items-start gap-2.5">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5"></i>
+                <span><b>Control de Fechas:</b> Verifica que la fecha del comprobante corresponda al período fiscal de la factura.</span>
+              </li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-slate-800 text-[11px] text-slate-400">
+            Cualquier diferencia bloquea el cierre y genera una alerta roja en la tabla inferior.
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtros y Tabla de Resultados de Auditoría de Retenciones -->
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap justify-between items-center gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="filtrarRetenciones('TODOS')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-white cursor-pointer">Todas (25)</button>
+            <button type="button" onclick="filtrarRetenciones('CONFORME')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 cursor-pointer">✅ Conformes ERP</button>
+            <button type="button" onclick="filtrarRetenciones('ERROR')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 cursor-pointer">🚨 Con Errores / Discrepancias</button>
+          </div>
+          <input type="text" id="buscadorRetenciones" onkeyup="renderizarTablaRetenciones()" placeholder="Buscar comprobante, factura o RIF..." class="px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-amber-500 w-56">
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                <th class="py-3 px-3">Dictamen ERP</th>
+                <th class="py-3 px-3">Tipo</th>
+                <th class="py-3 px-3">N° Comprobante / Factura</th>
+                <th class="py-3 px-3">RIF Verificado</th>
+                <th class="py-3 px-3">Fecha</th>
+                <th class="py-3 px-3 text-right">Base Imponible</th>
+                <th class="py-3 px-3 text-right bg-amber-50/50">Ret. Cargada</th>
+                <th class="py-3 px-3 text-right bg-emerald-50/50">Ret. ERP</th>
+                <th class="py-3 px-3">Resultado de Auditoría</th>
+              </tr>
+            </thead>
+            <tbody id="tablaRetenciones" class="divide-y divide-slate-100 text-xs"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- PESTAÑA 3: CONCILIACIÓN BANCARIA & ERP (VENTAS Y PAGOS)                -->
+    <!-- ===================================================================== -->
+    <section id="vista-matriz-conciliacion" class="hidden fade-in">
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm mb-5 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="filtrarConciliacion('TODOS')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-white cursor-pointer">Todas (25)</button>
+          <button type="button" onclick="filtrarConciliacion('CONCILIADO')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 cursor-pointer">✅ Confirmados en Banco</button>
+          <button type="button" onclick="filtrarConciliacion('ALERTA')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 cursor-pointer">⚠️ Fecha / Monto Diferente</button>
+          <button type="button" onclick="filtrarConciliacion('PENDIENTE')" class="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 cursor-pointer">❌ Sin Pago / No en Banco</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="text" id="buscadorConciliacion" onkeyup="renderizarConciliacion()" placeholder="Buscar factura, cliente o Ref..." class="px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 w-52">
+          <button type="button" onclick="exportarReporteGeneral()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="download" class="w-4 h-4"></i> Exportar Excel/CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                <th class="py-3.5 px-3">Estado</th>
+                <th class="py-3.5 px-3 bg-indigo-50/40">Factura ERP / Condición</th>
+                <th class="py-3.5 px-3 bg-indigo-50/40">Cliente</th>
+                <th class="py-3.5 px-3 bg-indigo-50/40 text-right">Total Factura</th>
+                <th class="py-3.5 px-3 bg-blue-50/50 border-l border-slate-200">Ref. Pago</th>
+                <th class="py-3.5 px-3 bg-blue-50/50">Fecha Venta / Banco</th>
+                <th class="py-3.5 px-3 bg-blue-50/50 text-right">Monto en Banco</th>
+                <th class="py-3.5 px-3 text-center">Soporte</th>
+                <th class="py-3.5 px-3 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tablaConciliacion" class="divide-y divide-slate-100 text-xs"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- PESTAÑA 4: SUBIDA DE ARCHIVOS EXCEL / CSV (ERP & BANCO) + MODO DEMO   -->
+    <!-- ===================================================================== -->
+    <section id="vista-subir-archivos" class="hidden fade-in">
+      <div class="max-w-4xl mx-auto">
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80 mb-6">
+          <div class="flex items-center gap-2.5 mb-2">
+            <div class="p-2 bg-blue-100 text-blue-700 rounded-lg"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i></div>
+            <div>
+              <h3 class="font-bold text-base text-slate-900">Enfoque 1: Subida de Archivos Reales (.CSV / Excel .XLSX)</h3>
+              <p class="text-xs text-slate-500">Sube el estado de cuenta bancario y el reporte descargado de la nube de tu ERP.</p>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-5 mt-5">
+            <div class="border-2 border-dashed border-blue-200 hover:border-blue-500 rounded-xl p-5 text-center bg-blue-50/20 transition">
+              <h4 class="font-bold text-xs text-slate-800">1. Archivo Extracto Bancario (.CSV / .XLSX)</h4>
+              <p class="text-[11px] text-slate-500 mt-1 mb-3">Columnas: Fecha, Referencia, Concepto, Monto</p>
+              <input type="file" id="fileBanco" accept=".csv,.xlsx,.xls" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white cursor-pointer"/>
+            </div>
+
+            <div class="border-2 border-dashed border-indigo-200 hover:border-indigo-500 rounded-xl p-5 text-center bg-indigo-50/20 transition">
+              <h4 class="font-bold text-xs text-slate-800">2. Archivo Ventas & Retenciones ERP (.CSV / .XLSX)</h4>
+              <p class="text-[11px] text-slate-500 mt-1 mb-3">Columnas: Factura, RIF, Cliente, Fecha, Condicion, Total, Referencia</p>
+              <input type="file" id="fileErp" accept=".csv,.xlsx,.xls" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white cursor-pointer"/>
+            </div>
+          </div>
+
+          <button type="button" onclick="procesarArchivosSubidos()" class="w-full mt-5 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer">
+            <i data-lucide="cpu" class="w-4 h-4"></i> Procesar Archivos y Ejecutar Conciliación
+          </button>
+        </div>
+
+        <div class="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 rounded-2xl p-6 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
+          <div>
+            <span class="bg-emerald-400 text-slate-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded uppercase">Enfoque 2: Demo Mode</span>
+            <h4 class="font-bold text-base mt-1.5">Simulación Extensa (25 Ventas + 25 Retenciones)</h4>
+            <p class="text-xs text-slate-300 mt-1">Restaura los 25 registros de ventas (contado/crédito), movimientos bancarios y 25 comprobantes de retención con casos conciliados, desfases de fecha, errores de RIF y diferencias de monto.</p>
+          </div>
+          <button type="button" onclick="cargarDatosDemo(true)" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs py-3 px-5 rounded-xl transition flex items-center gap-2 whitespace-nowrap shadow cursor-pointer">
+            <i data-lucide="sparkles" class="w-4 h-4"></i> Cargar 25 Registros Demo
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    let dbBanco = [];
+    let dbFacturasErp = [];
+    let dbRetencionesErp = [];
+    let dbRetencionesAuditadas = [];
+    let filtroConciliacionActual = 'TODOS';
+    let filtroRetencionesActual = 'TODOS';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      cargarDatosDemo(false);
+    });
+
+    function cargarDatosDemo(notificar = true) {
+      // =========================================================================
+      // BASE DE DATOS SIMULADA DE 25 VENTAS (ERP), BANCO Y 25 RETENCIONES
+      // =========================================================================
+      const clientes = [
+        { rif: 'J-30111222-3', nombre: 'Distribuidora Alpha C.A.' },
+        { rif: 'J-40555666-8', nombre: 'Corporación Beta S.A.' },
+        { rif: 'J-29888777-0', nombre: 'Comercial Gamma C.A.' },
+        { rif: 'J-30458912-1', nombre: 'Inversiones Delta C.A.' },
+        { rif: 'J-31999000-5', nombre: 'Servicios Omega C.A.' },
+        { rif: 'J-40123987-4', nombre: 'Supermercados El Sol C.A.' },
+        { rif: 'J-29456123-9', nombre: 'Ferretería Industrial Norte' },
+        { rif: 'J-30789456-2', nombre: 'Farmacia Salud Total S.R.L.' },
+        { rif: 'J-41234567-0', nombre: 'Alimentos La Estancia C.A.' },
+        { rif: 'J-30987123-6', nombre: 'Tecnología Avanzada Ve' },
+        { rif: 'J-29112233-4', nombre: 'AutoRepuestos Express C.A.' },
+        { rif: 'J-40887766-1', nombre: 'Constructora Horizonte S.A.' },
+        { rif: 'J-31554433-7', nombre: 'Papelería y Oficina Central' },
+        { rif: 'J-30223344-8', nombre: 'Logística y Transporte Sur' },
+        { rif: 'J-41998877-2', nombre: 'Importadora Pacífico C.A.' },
+        { rif: 'J-29665544-5', nombre: 'Textiles Modernos C.A.' },
+        { rif: 'J-30443322-9', nombre: 'Plásticos del Centro S.A.' },
+        { rif: 'J-40776655-3', nombre: 'Panadería y Pastelería Real' },
+        { rif: 'J-31889900-6', nombre: 'Clínica Metropolitana C.A.' },
+        { rif: 'J-29334455-1', nombre: 'Hotel Ejecutivo Plaza' },
+        { rif: 'J-30667788-0', nombre: 'Agropecuaria Los Llanos' },
+        { rif: 'J-41556677-8', nombre: 'Químicos Industriales Ve' },
+        { rif: 'J-30990011-2', nombre: 'Mueblería Confort Hogar' },
+        { rif: 'J-29778899-4', nombre: 'Librería Universitaria C.A.' },
+        { rif: 'J-40332211-9', nombre: 'Grupo Empresarial Andino' }
+      ];
+
+      dbBanco = [];
+      dbFacturasErp = [];
+      dbRetencionesErp = [];
+      dbRetencionesAuditadas = [];
+
+      const bancosLista = ['Banesco', 'Banco Mercantil', 'BBVA Provincial', 'Banco de Venezuela'];
+      const tiposRet = ['IVA 75%', 'IVA 100%', 'ISLR', 'Municipal (IAE)'];
+
+      for (let i = 0; i < 25; i++) {
+        const num = 1001 + i;
+        const factura = `FAC-${num}`;
+        const cli = clientes[i];
+        const dia = String((i % 24) + 1).padStart(2, '0');
+        const fechaVenta = `2026-11-${dia}`;
+        const base = (i + 2) * 250; // Bases entre $500 y $6,500
+        const total = parseFloat((base * 1.16).toFixed(2));
+        const ref = `REF-${5000 + i}`;
+        const bancoNom = bancosLista[i % bancosLista.length];
+
+        // --- ESCENARIOS VARIADOS PARA LAS 25 VENTAS ---
+        if (i < 14) {
+          // 1 al 14: Conciliadas perfectas (Contado y Crédito ya cobrado)
+          const cond = i % 2 === 0 ? 'Contado' : 'Crédito (Cobrado)';
+          dbFacturasErp.push({
+            factura, rif: cli.rif, cliente: cli.nombre, fechaVenta, condicion: cond,
+            total, refPago: ref, montoPagado: total, soportePago: `capture_${num}.jpg`
+          });
+          dbBanco.push({
+            fecha: fechaVenta, ref, banco: bancoNom, concepto: `TRANSF ${cli.nombre.toUpperCase()}`, monto: total
+          });
+        } else if (i >= 14 && i < 17) {
+          // 15 al 17: Desfase de fecha (El pago cayó 2 días después en el banco)
+          const diaBanco = String(Math.min(28, parseInt(dia) + 2)).padStart(2, '0');
+          dbFacturasErp.push({
+            factura, rif: cli.rif, cliente: cli.nombre, fechaVenta, condicion: 'Crédito (Cobrado)',
+            total, refPago: ref, montoPagado: total, soportePago: `transf_${num}.pdf`
+          });
+          dbBanco.push({
+            fecha: `2026-11-${diaBanco}`, ref, banco: bancoNom, concepto: `PAGO DIFERIDO ${cli.nombre.toUpperCase()}`, monto: total
+          });
+        } else if (i >= 17 && i < 20) {
+          // 18 al 20: Diferencia de monto / Abono parcial
+          const abono = parseFloat((total - 45.00).toFixed(2));
+          dbFacturasErp.push({
+            factura, rif: cli.rif, cliente: cli.nombre, fechaVenta, condicion: 'Abono Parcial',
+            total, refPago: ref, montoPagado: abono, soportePago: `abono_${num}.jpg`
+          });
+          dbBanco.push({
+            fecha: fechaVenta, ref, banco: bancoNom, concepto: `ABONO PARCIAL ${cli.nombre.toUpperCase()}`, monto: abono
+          });
+        } else if (i === 20) {
+          // 21: Factura a crédito lista para probar en vivo (El dinero YA está en el banco esperando)
+          dbFacturasErp.push({
+            factura, rif: cli.rif, cliente: cli.nombre, fechaVenta: '2026-11-23', condicion: 'Crédito (Cobro Viernes)',
+            total: 1040.00, refPago: '', montoPagado: 0, soportePago: ''
+          });
+          dbBanco.push({
+            fecha: '2026-11-25', ref: 'REF-9021', banco: 'Banesco', concepto: `TRANSF ${cli.nombre.toUpperCase()}`, monto: 1040.00
+          });
+        } else {
+          // 22 al 25: Facturas a crédito pendientes (No han pagado ni están en banco)
+          dbFacturasErp.push({
+            factura, rif: cli.rif, cliente: cli.nombre, fechaVenta, condicion: 'Crédito (Pendiente)',
+            total, refPago: '', montoPagado: 0, soportePago: ''
+          });
+        }
+
+        // --- ESCENARIOS VARIADOS PARA LAS 25 RETENCIONES ---
+        const tipoR = tiposRet[i % tiposRet.length];
+        const numComp = `20261100${String(10 + i).padStart(3, '0')}`;
+        let montoErp = 0;
+        if (tipoR === 'IVA 75%') montoErp = parseFloat(((base * 0.16) * 0.75).toFixed(2));
+        else if (tipoR === 'IVA 100%') montoErp = parseFloat((base * 0.16).toFixed(2));
+        else if (tipoR === 'ISLR') montoErp = parseFloat((base * 0.02).toFixed(2));
+        else montoErp = parseFloat((base * 0.015).toFixed(2));
+
+        // Guardamos en la base maestra del ERP (excepto la última #25 para simular "No existe en ERP")
+        if (i < 24) {
+          dbRetencionesErp.push({
+            factura, rif: cli.rif, tipo: tipoR, fecha: fechaVenta, base, montoEsperado: montoErp
+          });
+        }
+
+        // Cargamos los 25 comprobantes con errores estratégicos en algunos:
+        if (i < 16) {
+          // 16 retenciones 100% conformes
+          dbRetencionesAuditadas.push({
+            numComp, tipo: tipoR, factura, rifCargado: cli.rif, fechaCargada: fechaVenta,
+            baseCargada: base, montoCargado: montoErp, archivo: `ret_${num}.pdf`
+          });
+        } else if (i >= 16 && i < 19) {
+          // 3 retenciones con error en el RIF
+          const rifMalo = cli.rif.slice(0, -1) + (cli.rif.endsWith('9') ? '0' : '9');
+          dbRetencionesAuditadas.push({
+            numComp, tipo: tipoR, factura, rifCargado: rifMalo, fechaCargada: fechaVenta,
+            baseCargada: base, montoCargado: montoErp, archivo: `ret_err_rif_${num}.pdf`
+          });
+        } else if (i >= 19 && i < 22) {
+          // 3 retenciones con el monto retenido mal calculado
+          const montoMalo = parseFloat((montoErp - 25.50).toFixed(2));
+          dbRetencionesAuditadas.push({
+            numComp, tipo: tipoR, factura, rifCargado: cli.rif, fechaCargada: fechaVenta,
+            baseCargada: base, montoCargado: montoMalo, archivo: `ret_err_monto_${num}.pdf`
+          });
+        } else if (i >= 22 && i < 24) {
+          // 2 retenciones con fecha distinta a la registrada en el ERP
+          dbRetencionesAuditadas.push({
+            numComp, tipo: tipoR, factura, rifCargado: cli.rif, fechaCargada: '2026-10-30',
+            baseCargada: base, montoCargado: montoErp, archivo: `ret_err_fecha_${num}.pdf`
+          });
+        } else {
+          // 1 retención que no existe en la base del ERP
+          dbRetencionesAuditadas.push({
+            numComp, tipo: tipoR, factura, rifCargado: cli.rif, fechaCargada: fechaVenta,
+            baseCargada: base, montoCargado: montoErp, archivo: `ret_no_erp_${num}.pdf`
+          });
+        }
+      }
+
+      actualizarTodaLaInterfaz();
+      if (notificar) alert("✅ Simulación cargada: 25 Ventas (Contado/Crédito), movimientos bancarios y 25 Comprobantes de Retención con casos reales.");
+    }
+
+    function cambiarTab(tabId) {
+      ['cargar-pago', 'cargar-retencion', 'matriz-conciliacion', 'subir-archivos'].forEach(id => {
+        document.getElementById('vista-' + id).classList.add('hidden');
+        const btn = document.getElementById('tab-' + id);
+        btn.classList.remove('tab-active');
+        btn.classList.add('text-slate-600', 'hover:bg-slate-100');
+      });
+      document.getElementById('vista-' + tabId).classList.remove('hidden');
+      const activeBtn = document.getElementById('tab-' + tabId);
+      activeBtn.classList.add('tab-active');
+      activeBtn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+    }
+
+    function actualizarSelectorFacturas() {
+      const select = document.getElementById('selectFacturaErp');
+      select.innerHTML = '<option value="">-- Selecciona una factura a crédito pendiente o escribe manualmente --</option>';
+      dbFacturasErp.forEach(f => {
+        if (f.montoPagado < f.total) {
+          const saldo = f.total - f.montoPagado;
+          select.innerHTML += `<option value="${f.factura}">${f.factura} | ${f.cliente} | Saldo: ${formatearMoneda(saldo)} (${f.condicion})</option>`;
+        }
+      });
+    }
+
+    function autocompletarDesdeFactura() {
+      const cod = document.getElementById('selectFacturaErp').value;
+      const fac = dbFacturasErp.find(f => f.factura === cod);
+      if (fac) {
+        document.getElementById('pFactura').value = fac.factura;
+        document.getElementById('pCliente').value = fac.cliente;
+        document.getElementById('pMonto').value = (fac.total - fac.montoPagado).toFixed(2);
+        if (fac.factura === 'FAC-1021') {
+          document.getElementById('pRef').value = 'REF-9021';
+        }
+      }
+    }
+
+    function procesarNuevoPago(e) {
+      e.preventDefault();
+      const factura = document.getElementById('pFactura').value.trim().toUpperCase();
+      const cliente = document.getElementById('pCliente').value.trim();
+      const condicion = document.getElementById('pCondicion').value;
+      const ref = document.getElementById('pRef').value.trim().toUpperCase();
+      const monto = parseFloat(document.getElementById('pMonto').value) || 0;
+      const fecha = document.getElementById('pFecha').value;
+      const fileInput = document.getElementById('pArchivo');
+      const soporte = fileInput.files.length > 0 ? fileInput.files[0].name : 'capture_pago.jpg';
+
+      let facExistente = dbFacturasErp.find(f => f.factura === factura);
+      if (facExistente) {
+        facExistente.refPago = ref;
+        facExistente.montoPagado += monto;
+        facExistente.soportePago = soporte;
+      } else {
+        dbFacturasErp.unshift({
+          factura, rif: 'J-00000000-0', cliente, fechaVenta: fecha, condicion,
+          total: monto, refPago: ref, montoPagado: monto, soportePago: soporte
+        });
+      }
+
+      const movBanco = dbBanco.find(b => b.ref === ref);
+      actualizarTodaLaInterfaz();
+      document.getElementById('formPago').reset();
+
+      if (movBanco && Math.abs(movBanco.monto - monto) < 0.01) {
+        alert(`✅ ¡PAGO CONCILIADO AL INSTANTE!\nLa referencia ${ref} por ${formatearMoneda(monto)} coincide exactamente con el movimiento recibido en ${movBanco.banco}.`);
+      } else {
+        alert(`⏳ Pago cargado a la factura ${factura} (Ref: ${ref}). Queda marcado en tránsito hasta que se refleje en el extracto bancario.`);
+      }
+    }
+
+    function calcularSugerenciaRetencion() {
+      const tipo = document.getElementById('rTipo').value;
+      const base = parseFloat(document.getElementById('rBase').value) || 0;
+      const ayuda = document.getElementById('rAyudaCalculo');
+      if (base <= 0) {
+        ayuda.innerText = 'Ingresa la base imponible para ver el cálculo esperado.';
+        return;
+      }
+      if (tipo === 'IVA 75%') {
+        const sug = (base * 0.16) * 0.75;
+        ayuda.innerHTML = `Cálculo esperado (75% del 16% IVA): <b class="text-amber-700">${formatearMoneda(sug)}</b>`;
+      } else if (tipo === 'IVA 100%') {
+        const sug = base * 0.16;
+        ayuda.innerHTML = `Cálculo esperado (100% del 16% IVA): <b class="text-amber-700">${formatearMoneda(sug)}</b>`;
+      } else if (tipo === 'Municipal (IAE)') {
+        const sug = base * 0.015;
+        ayuda.innerHTML = `Alícuota Municipal referencial (1.5%): <b class="text-amber-700">${formatearMoneda(sug)}</b>`;
+      } else {
+        const sug = base * 0.02;
+        ayuda.innerHTML = `Retención ISLR referencial (2%): <b class="text-amber-700">${formatearMoneda(sug)}</b>`;
+      }
+    }
+
+    function autocompletarEjemploRetencion() {
+      document.getElementById('rTipo').value = 'IVA 75%';
+      document.getElementById('rNumComp').value = '20261100099';
+      document.getElementById('rFactura').value = 'FAC-1021';
+      document.getElementById('rRif').value = 'J-30667788-0';
+      document.getElementById('rFecha').value = '2026-11-21';
+      document.getElementById('rBase').value = '5500.00';
+      document.getElementById('rMontoRetenido').value = '660.00';
+      calcularSugerenciaRetencion();
+    }
+
+    function procesarNuevaRetencion(e) {
+      e.preventDefault();
+      const tipo = document.getElementById('rTipo').value;
+      const numComp = document.getElementById('rNumComp').value.trim();
+      const factura = document.getElementById('rFactura').value.trim().toUpperCase();
+      const rifCargado = document.getElementById('rRif').value.trim().toUpperCase();
+      const fechaCargada = document.getElementById('rFecha').value;
+      const baseCargada = parseFloat(document.getElementById('rBase').value) || 0;
+      const montoCargado = parseFloat(document.getElementById('rMontoRetenido').value) || 0;
+      const fileInput = document.getElementById('rArchivo');
+      const archivo = fileInput.files.length > 0 ? fileInput.files[0].name : 'comprobante_ret.pdf';
+
+      dbRetencionesAuditadas.unshift({
+        numComp, tipo, factura, rifCargado, fechaCargada, baseCargada, montoCargado, archivo
+      });
+
+      actualizarTodaLaInterfaz();
+      document.getElementById('formRetencion').reset();
+
+      const erpMatch = dbRetencionesErp.find(r => r.factura === factura);
+      if (erpMatch && erpMatch.rif === rifCargado && erpMatch.fecha === fechaCargada && Math.abs(erpMatch.montoEsperado - montoCargado) < 0.01) {
+        alert(`✅ ¡RETENCIÓN VERIFICADA!\nEl comprobante ${numComp} (${tipo}) existe en el ERP y su RIF, fecha, base y monto coinciden al 100%.`);
+      } else {
+        alert(`🚨 ALERTA DE AUDITORÍA:\nEl comprobante ${numComp} fue cargado pero presenta discrepancias frente a los datos del ERP. Revisa el detalle en la tabla inferior.`);
+      }
+    }
+
+    function actualizarTodaLaInterfaz() {
+      actualizarSelectorFacturas();
+      renderizarListaFacturasLateral();
+      renderizarTablaRetenciones();
+      renderizarConciliacion();
+      actualizarKPIs();
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function renderizarListaFacturasLateral() {
+      const cont = document.getElementById('listaFacturasLateral');
+      cont.innerHTML = '';
+      dbFacturasErp.forEach(f => {
+        const pagada = f.montoPagado >= f.total;
+        const badge = pagada
+          ? '<span class="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✅ Cobrada</span>'
+          : '<span class="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">⏳ Pendiente</span>';
+
+        cont.innerHTML += `
+          <div class="p-3 rounded-xl border border-slate-200/80 bg-slate-50/70">
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="font-mono-code text-[11px] font-bold text-blue-700">${f.factura}</span>
+                <span class="text-[10px] text-slate-500 ml-1">${f.condicion}</span>
+                <p class="font-bold text-xs text-slate-800 mt-0.5">${f.cliente}</p>
+              </div>
+              ${badge}
+            </div>
+            <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-200/60 text-[11px]">
+              <span class="text-slate-500">Total: <b>${formatearMoneda(f.total)}</b></span>
+              <span class="font-bold ${pagada ? 'text-emerald-600' : 'text-rose-600'}">Saldo: ${formatearMoneda(Math.max(0, f.total - f.montoPagado))}</span>
+            </div>
+          </div>`;
+      });
+    }
+
+    function filtrarRetenciones(filtro) {
+      filtroRetencionesActual = filtro;
+      renderizarTablaRetenciones();
+    }
+
+    function renderizarTablaRetenciones() {
+      const tbody = document.getElementById('tablaRetenciones');
+      const query = (document.getElementById('buscadorRetenciones').value || '').toLowerCase().trim();
+      tbody.innerHTML = '';
+
+      dbRetencionesAuditadas.forEach(item => {
+        const erp = dbRetencionesErp.find(e => e.factura === item.factura);
+        let estadoCat = 'ERROR';
+        let dictamen = '';
+        let obs = '';
+        let montoErpMostrar = 0;
+
+        if (!erp) {
+          dictamen = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">❌ No en ERP</span>';
+          obs = '<span class="text-rose-600 font-bold">La factura no posee retención registrada en la nube ERP</span>';
+        } else {
+          montoErpMostrar = erp.montoEsperado;
+          const rifOk = item.rifCargado === erp.rif;
+          const montoOk = Math.abs(item.montoCargado - erp.montoEsperado) < 0.01;
+          const baseOk = Math.abs(item.baseCargada - erp.base) < 0.01;
+          const fechaOk = item.fechaCargada === erp.fecha;
+
+          if (rifOk && montoOk && baseOk && fechaOk) {
+            estadoCat = 'CONFORME';
+            dictamen = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">✅ Conforme ERP</span>';
+            obs = '<span class="text-emerald-700 font-semibold">RIF, fecha, base y cálculo 100% verificados</span>';
+          } else {
+            dictamen = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900">⚠️ Discrepancia</span>';
+            let errs = [];
+            if (!rifOk) errs.push(`RIF esperado: ${erp.rif}`);
+            if (!fechaOk) errs.push(`Fecha ERP: ${erp.fecha}`);
+            if (!baseOk) errs.push(`Base ERP: ${formatearMoneda(erp.base)}`);
+            if (!montoOk) errs.push(`Dif. monto: ${formatearMoneda(item.montoCargado - erp.montoEsperado)}`);
+            obs = `<span class="text-rose-600 font-bold">${errs.join(' | ')}</span>`;
+          }
+        }
+
+        if (filtroRetencionesActual !== 'TODOS' && estadoCat !== filtroRetencionesActual) return;
+        if (query && !item.numComp.toLowerCase().includes(query) && !item.factura.toLowerCase().includes(query) && !item.rifCargado.toLowerCase().includes(query)) return;
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-3 px-3 whitespace-nowrap">${dictamen}</td>
+            <td class="py-3 px-3 whitespace-nowrap"><span class="bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded text-[11px]">${item.tipo}</span></td>
+            <td class="py-3 px-3 font-mono-code font-bold text-slate-800">${item.numComp}<div class="text-[10px] text-blue-600">${item.factura}</div></td>
+            <td class="py-3 px-3 font-mono-code ${erp && item.rifCargado !== erp.rif ? 'text-rose-600 font-extrabold bg-rose-50' : 'text-slate-700'}">${item.rifCargado}</td>
+            <td class="py-3 px-3 whitespace-nowrap ${erp && item.fechaCargada !== erp.fecha ? 'text-rose-600 font-bold' : 'text-slate-600'}">${item.fechaCargada}</td>
+            <td class="py-3 px-3 text-right font-semibold">${formatearMoneda(item.baseCargada)}</td>
+            <td class="py-3 px-3 text-right bg-amber-50/40 font-extrabold ${erp && Math.abs(item.montoCargado - erp.montoEsperado) >= 0.01 ? 'text-rose-600' : 'text-amber-900'}">${formatearMoneda(item.montoCargado)}</td>
+            <td class="py-3 px-3 text-right bg-emerald-50/40 font-bold text-emerald-700">${erp ? formatearMoneda(montoErpMostrar) : '—'}</td>
+            <td class="py-3 px-3 text-xs">${obs}</td>
+          </tr>`;
+      });
+    }
+
+    function filtrarConciliacion(filtro) {
+      filtroConciliacionActual = filtro;
+      renderizarConciliacion();
+    }
+
+    function renderizarConciliacion() {
+      const tbody = document.getElementById('tablaConciliacion');
+      const query = (document.getElementById('buscadorConciliacion').value || '').toLowerCase().trim();
+      tbody.innerHTML = '';
+
+      dbFacturasErp.forEach((f, idx) => {
+        const movBanco = f.refPago ? dbBanco.find(b => b.ref === f.refPago) : null;
+        let estado = 'PENDIENTE';
+        let badge = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700">❌ Pendiente / Sin Banco</span>';
+
+        if (movBanco) {
+          const montoOk = Math.abs(movBanco.monto - f.total) < 0.01;
+          const fechaOk = movBanco.fecha === f.fechaVenta;
+
+          if (montoOk && fechaOk) {
+            estado = 'CONCILIADO';
+            badge = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">✅ Conciliado</span>';
+          } else if (montoOk && !fechaOk) {
+            estado = 'ALERTA';
+            badge = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">⚠️ Fecha distinta</span>';
+          } else {
+            estado = 'ALERTA';
+            badge = '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">⚠️ Abono / Dif. Monto</span>';
+          }
+        }
+
+        if (filtroConciliacionActual !== 'TODOS' && estado !== filtroConciliacionActual) return;
+        if (query && !f.factura.toLowerCase().includes(query) && !f.cliente.toLowerCase().includes(query) && !(f.refPago || '').toLowerCase().includes(query)) return;
+
+        const refHtml = f.refPago
+          ? `<span class="font-mono-code text-[11px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">${f.refPago}</span>`
+          : '<span class="text-slate-400 italic text-[11px]">Sin pago cargado</span>';
+
+        const fechaHtml = movBanco
+          ? `<div class="text-slate-600">ERP: ${f.fechaVenta}</div><div class="text-[10px] ${movBanco.fecha === f.fechaVenta ? 'text-emerald-600' : 'text-amber-600 font-bold'}">Bco: ${movBanco.fecha}</div>`
+          : `<span class="text-slate-400">${f.fechaVenta}</span>`;
+
+        const montoBancoHtml = movBanco
+          ? `<span class="font-extrabold ${Math.abs(movBanco.monto - f.total) < 0.01 ? 'text-emerald-600' : 'text-amber-600'}">${formatearMoneda(movBanco.monto)}</span>`
+          : '<span class="text-slate-400">$0.00</span>';
+
+        const soporteHtml = f.soportePago ? `<span class="text-[11px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">📎 ${f.soportePago}</span>` : '<span class="text-slate-300">—</span>';
+
+        const accionHtml = estado !== 'CONCILIADO'
+          ? `<button type="button" onclick="irACobrarFactura('${f.factura}')" class="text-[11px] bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold px-2.5 py-1 rounded-lg transition cursor-pointer">Cobrar / Ajustar</button>`
+          : '<span class="text-emerald-600 font-bold text-[11px]">✔ Cuadrado</span>';
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="py-3.5 px-3 whitespace-nowrap">${badge}</td>
+            <td class="py-3.5 px-3 bg-indigo-50/20">
+              <div class="font-mono-code font-bold text-slate-800">${f.factura}</div>
+              <div class="text-[10px] text-indigo-600 font-semibold">${f.condicion}</div>
+            </td>
+            <td class="py-3.5 px-3 bg-indigo-50/20 font-semibold text-slate-700">${f.cliente}</td>
+            <td class="py-3.5 px-3 bg-indigo-50/20 text-right font-bold text-slate-900 whitespace-nowrap">${formatearMoneda(f.total)}</td>
+            <td class="py-3.5 px-3 bg-blue-50/20 border-l border-slate-200 whitespace-nowrap">${refHtml}</td>
+            <td class="py-3.5 px-3 bg-blue-50/20 whitespace-nowrap text-[11px]">${fechaHtml}</td>
+            <td class="py-3.5 px-3 bg-blue-50/20 text-right whitespace-nowrap">${montoBancoHtml}</td>
+            <td class="py-3.5 px-3 text-center whitespace-nowrap">${soporteHtml}</td>
+            <td class="py-3.5 px-3 text-center whitespace-nowrap">${accionHtml}</td>
+          </tr>`;
+      });
+    }
+
+    function irACobrarFactura(codFactura) {
+      cambiarTab('cargar-pago');
+      document.getElementById('selectFacturaErp').value = codFactura;
+      autocompletarDesdeFactura();
+    }
+
+    function actualizarKPIs() {
+      const totalBanco = dbBanco.reduce((s, b) => s + b.monto, 0);
+      const totalErp = dbFacturasErp.reduce((s, f) => s + f.total, 0);
+      const pendientes = dbFacturasErp.filter(f => f.montoPagado < f.total).length;
+      const totalRet = dbRetencionesAuditadas.reduce((s, r) => s + r.montoCargado, 0);
+
+      let erroresRet = 0;
+      dbRetencionesAuditadas.forEach(item => {
+        const erp = dbRetencionesErp.find(e => e.factura === item.factura);
+        if (!erp || item.rifCargado !== erp.rif || item.fechaCargada !== erp.fecha || Math.abs(item.montoCargado - erp.montoEsperado) >= 0.01) {
+          erroresRet++;
+        }
+      });
+
+      let conciliadas = 0;
+      dbFacturasErp.forEach(f => {
+        const mb = f.refPago ? dbBanco.find(b => b.ref === f.refPago) : null;
+        if (mb && Math.abs(mb.monto - f.total) < 0.01 && mb.fecha === f.fechaVenta) conciliadas++;
+      });
+
+      const efectividad = dbFacturasErp.length > 0 ? Math.round((conciliadas / dbFacturasErp.length) * 100) : 0;
+
+      document.getElementById('kpiBanco').innerText = formatearMoneda(totalBanco);
+      document.getElementById('kpiMovBanco').innerText = `${dbBanco.length} movimientos en cuenta`;
+      document.getElementById('kpiErp').innerText = formatearMoneda(totalErp);
+      document.getElementById('kpiPendienteCobro').innerText = `${pendientes} factura(s) a crédito pendientes`;
+      document.getElementById('kpiRetenciones').innerText = formatearMoneda(totalRet);
+      document.getElementById('kpiRetAlerta').innerText = `${erroresRet} discrepancia(s) fiscal(es)`;
+      document.getElementById('kpiEfectividad').innerText = efectividad + '%';
+      document.getElementById('barraEfectividad').style.width = efectividad + '%';
+    }
+
+    function leerArchivoGenerico(file) {
+      return new Promise((resolve, reject) => {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext === 'csv') {
+          Papa.parse(file, { header: true, skipEmptyLines: true, complete: r => resolve(r.data), error: e => reject(e) });
+        } else {
+          const reader = new FileReader();
+          reader.onload = e => {
+            const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+            resolve(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]));
+          };
+          reader.readAsArrayBuffer(file);
+        }
+      });
+    }
+
+    async function procesarArchivosSubidos() {
+      const fBanco = document.getElementById('fileBanco').files[0];
+      const fErp = document.getElementById('fileErp').files[0];
+      if (!fBanco || !fErp) {
+        alert("Selecciona tanto el Extracto Bancario como el Reporte ERP (.CSV o .XLSX).");
+        return;
+      }
+      const rawBanco = await leerArchivoGenerico(fBanco);
+      const rawErp = await leerArchivoGenerico(fErp);
+
+      dbBanco = rawBanco.map((r, i) => ({
+        fecha: String(r.Fecha || '2026-11-25'),
+        ref: String(r.Referencia || 'REF-' + i).toUpperCase(),
+        banco: 'Banco Importado',
+        concepto: String(r.Concepto || 'Movimiento'),
+        monto: parseFloat(r.Monto || 0)
+      }));
+
+      dbFacturasErp = rawErp.map((r, i) => {
+        const total = parseFloat(r.Total || 0);
+        const ref = String(r.Referencia || '').toUpperCase();
+        const mov = dbBanco.find(b => b.ref === ref);
+        return {
+          factura: String(r.Factura || 'FAC-' + i).toUpperCase(),
+          rif: String(r.RIF || 'J-00000000-0').toUpperCase(),
+          cliente: String(r.Cliente || 'Cliente ERP'),
+          fechaVenta: String(r.Fecha || '2026-11-25'),
+          condicion: String(r.Condicion || 'Crédito'),
+          total: total,
+          refPago: ref,
+          montoPagado: mov ? mov.monto : 0,
+          soportePago: mov ? 'erp_banco.pdf' : ''
+        };
+      });
+
+      actualizarTodaLaInterfaz();
+      cambiarTab('matriz-conciliacion');
+      alert("✅ Archivos Excel/CSV cargados y conciliados.");
+    }
+
+    function descargarPlantillas() {
+      const pBanco = [
+        ["Fecha", "Referencia", "Concepto", "Monto"],
+        ["2026-11-25", "REF-5001", "TRANSF CLIENTE SOL CA", "1160.00"],
+        ["2026-11-25", "REF-5002", "PAGO CORPORACION LUNA", "580.00"]
+      ];
+      descargarCSV(pBanco.map(e => e.join(",")).join("\r\n"), "Plantilla_Extracto_Banco.csv");
+
+      const pErp = [
+        ["Factura", "RIF", "Cliente", "Fecha", "Condicion", "Total", "Referencia"],
+        ["FAC-201", "J-30123456-7", "Cliente Sol C.A.", "2026-11-25", "Contado", "1160.00", "REF-5001"],
+        ["FAC-202", "J-40987654-1", "Corporacion Luna", "2026-11-25", "Credito", "580.00", ""]
+      ];
+      setTimeout(() => descargarCSV(pErp.map(e => e.join(",")).join("\r\n"), "Plantilla_Nube_ERP.csv"), 400);
+    }
+
+    function exportarReporteGeneral() {
+      const filas = [["Factura", "RIF", "Cliente", "Condicion", "Fecha_Venta", "Total_Factura", "Ref_Pago", "Monto_Pagado", "Estado"]];
+      dbFacturasErp.forEach(f => {
+        filas.push([f.factura, f.rif, f.cliente.replace(/,/g, ''), f.condicion, f.fechaVenta, f.total.toFixed(2), f.refPago || 'PENDIENTE', f.montoPagado.toFixed(2), f.montoPagado >= f.total ? 'CONCILIADO' : 'PENDIENTE']);
+      });
+      descargarCSV(filas.map(e => e.join(",")).join("\r\n"), "Reporte_25_Ventas_FinanSync.csv");
+    }
+
+    function descargarCSV(contenido, nombre) {
+      const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = nombre;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function formatearMoneda(valor) {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(valor);
+    }
+  </script>
+</body>
+</html>
